@@ -16,6 +16,21 @@ local function includes(tbl, val)
   return false
 end
 
+local function to_close_tag(name) 
+  local space = name:find('%s') 
+
+  if space ~= nil then
+    name = name:sub(0, space):gsub('%s+', '')
+  else 
+    space = name:find('%c')
+    if space ~= nil then
+      name = name:sub(0, space):gsub('%s+', '')
+    end
+  end
+  name = name:gsub('>', '')
+  return '</'..name:sub(2)..'>'
+end
+
 local function get_closing_tag()
   local target = ts_utils.get_node_at_cursor()
 
@@ -51,15 +66,16 @@ local function get_closing_tag()
       if unopened == 0 then
         local name = ts_utils.get_node_text(current_node)[1]
 
-        if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(2, -2)) then
+        name = to_close_tag(name)
+
+        if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
           return nil
         end
 
-        if name == "<>" then
+        if name == "" then
           return "</>"
-        else
-          name = "</"..name:sub(2)
         end
+
         return name
       else
         unopened = unopened - 1 
