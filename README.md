@@ -6,6 +6,8 @@ source for closing tags provided by
 
 Heavily inspired by [`nvim-ts-autotag`](https://github.com/windwp/nvim-ts-autotag/) ❤️
 
+<video src="https://user-images.githubusercontent.com/14929556/229447865-58af5ed5-decc-4fd4-a091-93c445fad90b.mov" width="100%"></video>
+
 ## Setup
 
 ### Install ([lazy.nvim](https://github.com/folke/lazy.nvim))

@@ -114,9 +114,14 @@ end
 function source:resolve(completion, callback) callback(completion) end
 function source:execute(completion, callback) callback(completion) end
 
+function source:is_available()
+  return includes(M.filetypes, vim.bo.filetype)
+end
+
 M.setup = function(opts)
     opts = opts or {}
     M.skip_tags = opts.skip_tags or M.skip_tags 
+    M.filetypes = opts.filetypes or { 'html', 'javascript', 'typescript', 'javascriptreact', 'typescriptreact', 'svelte', 'vue', 'tsx', 'jsx', 'rescript', 'xml', 'php', 'markdown', 'glimmer', 'handlebars', 'hbs', 'htmldjango' }
     require('cmp').register_source('nvim-cmp-ts-tag-close', source)
 end
 
