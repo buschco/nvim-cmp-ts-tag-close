@@ -4,6 +4,9 @@ local parsers = require('nvim-treesitter.parsers')
 local M = {}
 local source = {}
 
+local open_tag = { 'jsx_opening_element', 'start_tag', 'element_node_start' }
+local close_tag = { 'jsx_closing_element', 'end_tag', 'element_node_end' }
+
 local function includes(tbl, val)
   if tbl == nil then
     return false
@@ -31,6 +34,8 @@ local function to_close_tag(name)
   return '</'..name:sub(2)..'>'
 end
 
+
+
 local function get_closing_tag()
   local target = ts_utils.get_node_at_cursor()
 
@@ -41,57 +46,72 @@ local function get_closing_tag()
   local depth = 0
   local unopened = 0
 
-  local open_tag = { 'jsx_opening_element', 'start_tag', 'element_node_start' }
-  local close_tag = { 'jsx_closing_element', 'end_tag', 'element_node_end' }
-
   local current_node = nil
 
-  if target:child_count() == 0 then
+  if target:type() == 'fragment' then
+    target =  target:child()
+    current_node = target:child(target:child_count()-1)
+  elseif target:child_count() < 2 then
     current_node = target:prev_sibling()
   else
     current_node = target:child(target:child_count()-1)
   end
 
-  while current_node ~= nil and depth < 20 do
-    local sr, sc = current_node:range()
+  local function traverse_tree() 
+    while current_node ~= nil and depth < 20 do
 
-    depth = depth + 1
-    local node_type = current_node:type()
+      depth = depth + 1
+      local node_type = current_node:type()
 
-    if node_type == nil then 
-      return nil
-    end
+      if node_type == 'ERROR' and current_node:child_count() > 0 then
+        local entry = current_node
+        current_node = current_node:child(current_node:child_count()-1)
+        local result_in_error_node = traverse_tree()
 
-    if includes(open_tag, node_type) then
-      if unopened == 0 then
-        local name = ts_utils.get_node_text(current_node)[1]
-
-        name = to_close_tag(name)
-
-        if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
-          return nil
+        if result_in_error_node ~= nil then
+          return result_in_error_node
         end
-
-        if name == "" then
-          return "</>"
-        end
-
-        return name
-      else
-        unopened = unopened - 1 
+        current_node = entry
       end
-    end
 
-    if includes(close_tag, node_type) then
-      unopened = unopened + 1
-    end
+      if node_type == nil then
+        return nil
+      end
 
-    current_node = current_node:prev_sibling()
+      if includes(open_tag, node_type) then
+        if unopened == 0 then
+          local name = ts_utils.get_node_text(current_node)[1]
+
+          name = to_close_tag(name)
+
+          if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
+            return nil
+          end
+
+          if name == "" then
+            return "</>"
+          end
+
+          return name
+        else
+          unopened = unopened - 1 
+        end
+      end
+
+      if includes(close_tag, node_type) then
+        unopened = unopened + 1
+      end
+
+      current_node = current_node:prev_sibling()
+    end
+    return nil
   end
-  return nil
+
+  return traverse_tree()
 end
 
-parse_and_get_closing_tag = function()
+
+local parse_and_get_closing_tag = function()
   local buf_parser = parsers.get_parser()
   if not buf_parser then
     return nil
@@ -100,7 +120,6 @@ parse_and_get_closing_tag = function()
   return get_closing_tag()
 end
 
-function source:is_available() return true end
 function source:get_debug_name() return 'ts-autotag' end
 function source:get_trigger_characters() return { '<' } end
 
