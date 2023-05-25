@@ -6,7 +6,7 @@ source for closing tags provided by
 
 Heavily inspired by [`nvim-ts-autotag`](https://github.com/windwp/nvim-ts-autotag/) ❤️
 
-<video src="https://user-images.githubusercontent.com/14929556/229447865-58af5ed5-decc-4fd4-a091-93c445fad90b.mov" width="100%"></video>
+<video src="https://github.com/buschco/nvim-cmp-ts-tag-close/assets/14929556/f2fa1174-2b59-476a-b4e7-a3baf07f68d0" width="100%"></video>
 
 ## Setup
 
