@@ -57,7 +57,7 @@ local function get_closing_tag()
     includes(open_tag, target:child(0):type()) then
 
     current_node = target:child(0)
-    local name = ts_utils.get_node_text(current_node)[1]
+    local name = vim.treesitter.get_node_text(current_node, vim.api.nvim_get_current_buf())
     
     name = to_close_tag(name)
 
@@ -97,7 +97,7 @@ local function get_closing_tag()
 
       if includes(open_tag, node_type) then
         if unopened == 0 then
-          local name = ts_utils.get_node_text(current_node)[1]
+          local name = vim.treesitter.get_node_text(current_node, vim.api.nvim_get_current_buf())
           
           name = to_close_tag(name)
 
