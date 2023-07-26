@@ -53,6 +53,23 @@ local function get_closing_tag()
     current_node = target:child(target:child_count()-1)
   elseif target:child_count() < 2 then
     current_node = target:prev_sibling()
+  elseif target:type() == 'jsx_element' and
+    includes(open_tag, target:child(0):type()) then
+
+    current_node = target:child(0)
+    local name = ts_utils.get_node_text(current_node)[1]
+    
+    name = to_close_tag(name)
+
+    if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
+      return nil
+    end
+
+    if name == "" then
+      return "</>"
+    end
+
+    return name
   else
     current_node = target:child(target:child_count()-1)
   end
@@ -81,7 +98,7 @@ local function get_closing_tag()
       if includes(open_tag, node_type) then
         if unopened == 0 then
           local name = ts_utils.get_node_text(current_node)[1]
-
+          
           name = to_close_tag(name)
 
           if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
