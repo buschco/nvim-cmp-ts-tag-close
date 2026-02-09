@@ -19,125 +19,82 @@ local function includes(tbl, val)
   return false
 end
 
-local function to_close_tag(name) 
-  local space = name:find('%s') 
+local function to_close_tag(name)
+  local space = name:find('%s')
 
   if space ~= nil then
     name = name:sub(0, space):gsub('%s+', '')
-  else 
+  else
     space = name:find('%c')
     if space ~= nil then
       name = name:sub(0, space):gsub('%s+', '')
     end
   end
   name = name:gsub('>', '')
-  return '</'..name:sub(2)..'>'
+  return '</' .. name:sub(2) .. '>'
 end
 
+local query = vim.treesitter.query.parse(
+  "tsx",
+  [[
+    (jsx_opening_element) @open
+    (jsx_closing_element) @close
+  ]]
+)
 
-
-local function get_closing_tag()
-  local target = ts_utils.get_node_at_cursor()
-
-  if target == nil then
+local function get_closing_tag_v3(tree, row, col)
+  local bufnr = vim.api.nvim_get_current_buf()
+  if not tree then
+    print("no tree")
     return nil
   end
 
-  local depth = 0
-  local unopened = 0
+  local unclosed = {}
 
-  local current_node = nil
+  for id, node, _ in query:iter_captures(tree:root()) do
+    local kind = query.captures[id]
+    local node_row, node_col, _, _ = node:range()
+    local name = vim.treesitter.get_node_text(node:child(1), bufnr)
 
-  if target:type() == 'fragment' then
-    target =  target:child()
-    current_node = target:child(target:child_count()-1)
-  elseif target:child_count() < 2 then
-    current_node = target:prev_sibling()
-  elseif target:type() == 'jsx_element' and
-    includes(open_tag, target:child(0):type()) then
-
-    current_node = target:child(0)
-    local name = vim.treesitter.get_node_text(current_node, vim.api.nvim_get_current_buf())
-    
-    name = to_close_tag(name)
-
-    if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
-      return nil
+    if node_row < row or (node_row == row and node_col < col) then
+      print(kind, name, node_row, node_col, row, col)
+      if kind == "open" then
+        if name ~= "" and name ~= "}" then
+          table.insert(unclosed, name)
+        end
+      elseif kind == "close" then
+        for i = #unclosed, 1, -1 do
+          if unclosed[i] == name then
+            table.remove(unclosed, i)
+            break
+          end
+        end
+      end
     end
-
-    if name == "" then
-      return "</>"
-    end
-
-    return name
-  else
-    current_node = target:child(target:child_count()-1)
   end
 
-  local function traverse_tree() 
-    while current_node ~= nil and depth < 20 do
 
-      depth = depth + 1
-      local node_type = current_node:type()
-
-      if node_type == 'ERROR' and current_node:child_count() > 0 then
-        local entry = current_node
-        current_node = current_node:child(current_node:child_count()-1)
-        local result_in_error_node = traverse_tree()
-
-        if result_in_error_node ~= nil then
-          return result_in_error_node
-        end
-        current_node = entry
-      end
-
-      if node_type == nil then
-        return nil
-      end
-
-      if includes(open_tag, node_type) then
-        if unopened == 0 then
-          local name = vim.treesitter.get_node_text(current_node, vim.api.nvim_get_current_buf())
-          
-          name = to_close_tag(name)
-
-          if M.skip_tags ~= nil and includes(M.skip_tags, name:sub(3, -2)) then
-            return nil
-          end
-
-          if name == "" then
-            return "</>"
-          end
-
-          return name
-        else
-          unopened = unopened - 1 
-        end
-      end
-
-      if includes(close_tag, node_type) then
-        unopened = unopened + 1
-      end
-
-      current_node = current_node:prev_sibling()
-    end
+  print(table.concat(unclosed, ", "))
+  local to_be_closed = unclosed[#unclosed]
+  if not to_be_closed then
+    print "nothing to be closed"
     return nil
   end
-
-  return traverse_tree()
+  return to_close_tag("<" .. to_be_closed)
 end
-
 
 local parse_and_get_closing_tag = function()
   local buf_parser = parsers.get_parser()
   if not buf_parser then
     return nil
   end
-  buf_parser:parse()
-  return get_closing_tag()
+  local tree = buf_parser:parse()[1]
+  local pos = vim.api.nvim_win_get_cursor(0)
+  return get_closing_tag_v3(tree, pos[1], pos[2])
 end
 
 function source:get_debug_name() return 'ts-autotag' end
+
 function source:get_trigger_characters() return { '<' } end
 
 function source:complete(_, callback)
@@ -145,9 +102,11 @@ function source:complete(_, callback)
   if closing_tag == nil then
     callback()
   end
-  callback({{label = closing_tag}})
+  callback({ { label = closing_tag } })
 end
+
 function source:resolve(completion, callback) callback(completion) end
+
 function source:execute(completion, callback) callback(completion) end
 
 function source:is_available()
@@ -155,10 +114,28 @@ function source:is_available()
 end
 
 M.setup = function(opts)
-    opts = opts or {}
-    M.skip_tags = opts.skip_tags or M.skip_tags 
-    M.filetypes = opts.filetypes or { 'html', 'javascript', 'typescript', 'javascriptreact', 'typescriptreact', 'svelte', 'vue', 'tsx', 'jsx', 'rescript', 'xml', 'php', 'markdown', 'glimmer', 'handlebars', 'hbs', 'htmldjango' }
-    require('cmp').register_source('nvim-cmp-ts-tag-close', source)
+  opts = opts or {}
+  M.skip_tags = opts.skip_tags or M.skip_tags
+  M.filetypes = opts.filetypes or {
+    'html',
+    'javascript',
+    'typescript',
+    'javascriptreact',
+    'typescriptreact',
+    'svelte',
+    'vue',
+    'tsx',
+    'jsx',
+    'rescript',
+    'xml',
+    'php',
+    'markdown',
+    'glimmer',
+    'handlebars',
+    'hbs',
+    'htmldjango'
+  }
+  require('cmp').register_source('nvim-cmp-ts-tag-close', source)
 end
 
 return M
