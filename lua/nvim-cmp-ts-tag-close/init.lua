@@ -54,10 +54,10 @@ local function get_closing_tag_v3(tree, row, col)
   for id, node, _ in query:iter_captures(tree:root()) do
     local kind = query.captures[id]
     local node_row, node_col, _, _ = node:range()
+    if not node:child(1) then break end
     local name = vim.treesitter.get_node_text(node:child(1), bufnr)
 
     if node_row < row or (node_row == row and node_col < col) then
-      print(kind, name, node_row, node_col, row, col)
       if kind == "open" then
         if name ~= "" and name ~= "}" then
           table.insert(unclosed, name)
